@@ -1,0 +1,17 @@
+#new "matrix:" (@@
+    #new "size_x" (get: ... 0);
+    #new "size_y" (get: ... 1);
+    #new "result" (list:);
+    repeat size_x (@@
+        print 'aeiou';
+        #new "row" (list:);
+        repeat size_y (@@
+            push: row 0;#
+        );
+        push: result row;
+        #delete "row";
+        ls.hash;
+    );  
+);
+
+print (matrix: 10 10)
