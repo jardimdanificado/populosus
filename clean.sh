@@ -1,0 +1,1 @@
+rm -rf bruter include lib/*.so
