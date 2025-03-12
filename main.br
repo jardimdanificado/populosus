@@ -1,17 +1,20 @@
-#new "matrix:" (@@
-    #new "size_x" (get: ... 0);
-    #new "size_y" (get: ... 1);
-    #new "result" (list:);
-    repeat size_x (@@
-        print 'aeiou';
-        #new "row" (list:);
-        repeat size_y (@@
-            push: row 0;#
-        );
-        push: result row;
-        #delete "row";
-        ls.hash;
-    );  
-);
+load "lib/std.so";
+load "lib/populosus.so";
 
-print (matrix: 10 10)
+#new "world" (new_world 256 256);
+
+print "random names:";
+print;
+print_random_name;
+print_random_name;
+print;
+print "scrambled names:";
+print;
+print_scrambled_name;
+print_scrambled_name;
+print;
+print "evolved names:";
+print;
+print_evolved_name;
+print_evolved_name;
+print;
