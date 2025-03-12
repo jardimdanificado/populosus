@@ -107,6 +107,7 @@ typedef struct
 
     // needs
     NeedList *needs;
+    PreferenceList *preferences;
 } Life;
 typedef List(Life) LifeList;
 
