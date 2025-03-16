@@ -309,6 +309,18 @@ void increaseoradd_preference(PreferenceList *preferences, char type, int value)
     }
 }
 
+char is_trait(CharList traits, char trait)
+{
+    for (int i = 0; i < traits.size; i++)
+    {
+        if (traits.data[i] == trait)
+        {
+            return 1;
+        }
+    }
+    return 0;
+}
+
 // bruter functions
 
 function(new_world)
@@ -422,7 +434,7 @@ function(creature_grow)
 
     CharList *traits = world->species->data[life->specie].traits;
 
-    if (list_find(*traits, TRAIT_PHOTOSYNTHESIS) != -1)
+    if (is_trait(*traits, TRAIT_PHOTOSYNTHESIS))
     {
         // lets find a direction preference
         int direction = -1;

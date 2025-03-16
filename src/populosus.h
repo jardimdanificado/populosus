@@ -125,5 +125,6 @@ typedef struct
     Map8 temperature;
     Map8 quality; // water quality
     Map8 material;
+    Map8 light;
 } World;
 

@@ -1,4 +1,7 @@
-cd bruter
-./build.sh --lib ../lib/populosus.c
-./build.sh --lib ./lib/std.c
-mv ./lib/std.so ../lib/
+bruterc ./src/populosus.c
+bruterc ./src/std.c
+
+rm -rf ./lib
+mkdir ./lib
+
+mv src/*.so ./lib/
