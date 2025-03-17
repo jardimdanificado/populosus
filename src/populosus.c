@@ -35,9 +35,17 @@ char* generate_name(char compounds)
         {
             break;  // whatever
         }
-        else 
+        else if (percent_chance(10))
         {
-            switch (random_int(0, 8))
+            strcat(name, " ");
+        }
+        else if (percent_chance(10))
+        {
+            strcat(name, "-");
+        }
+        else if (percent_chance(10))
+        {
+            switch (random_int(0, 5))
             {
                 case 0:
                     strcat(name, " o ");
@@ -53,18 +61,6 @@ char* generate_name(char compounds)
                     break;
                 case 4:
                     strcat(name, " do ");
-                    break;
-                case 5:
-                    strcat(name, " dos ");
-                    break;
-                case 6:
-                    strcat(name, " das ");
-                    break;
-                case 7:
-                    strcat(name, " ");
-                    break;
-                case 8:
-                    strcat(name, "-");
                     break;
             }
         }
@@ -145,9 +141,9 @@ char* fuse_names(char* name1, char* name2)
 
 char* evolve_name(char* name) // add a new word to the name, or, if the name is less or equals to 99 chars remove the amount of char of the new word from a random position between 0 and max-wordsize
 {
-    char* new_name = malloc(sizeof(char) * 100);
+    char* new_name = malloc(sizeof(char) * 256);
     strcpy(new_name, name);
-    if (strlen(new_name) <= 99)
+    if (strlen(new_name) <= 255)
     {
         char* word = vocabulary[random_int(0, sizeof(vocabulary) / sizeof(char*) - 1)];
         if (strlen(new_name) + strlen(word) + 6 <= 99)

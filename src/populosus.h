@@ -1,4 +1,4 @@
-#include "bruter.h"
+#include <bruter.h>
 #include "vocabulary.h"
 
 // math basics
