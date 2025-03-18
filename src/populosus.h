@@ -75,18 +75,9 @@ typedef List(Preference) PreferenceList;
 typedef struct 
 {
     char* name;
-    short value;
-    short max;
-} Need;
-typedef List(Need) NeedList;
-
-typedef struct 
-{
-    char* name;
     BehaviourList *behaviours;
     PreferenceList *preferences;
     CharList *traits;
-    NeedList *needs;
     Int population;
 } Specie;
 typedef List(Specie) SpecieList;
@@ -94,7 +85,7 @@ typedef List(Specie) SpecieList;
 typedef struct
 {
     //char* name;
-    short specie;
+    Specie* specie;
 
     // birth
     int birth_x;
@@ -106,8 +97,8 @@ typedef struct
     int y;
 
     // needs
-    NeedList *needs;
-    PreferenceList *preferences;
+    short energy;
+    short health;
 } Life;
 typedef List(Life) LifeList;
 

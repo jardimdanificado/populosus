@@ -7,6 +7,6 @@ push_behaviour world specie0 "life_photosynthesis world self";
 push_trait world specie0 trait.photosynthesis;
 #new "life0" (new_life world specie0 32 32);
 
-repeat 5 "game_turn world";
+repeat 1000 "game_turn world";
 
 free_world world;
