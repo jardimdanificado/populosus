@@ -275,7 +275,19 @@ Vector2 apply_direction(Vector2 vector, char direction)
 
 // game functions
 
-void increaseoradd_preference(PreferenceList *preferences, char type, int value)
+void life_move(World* world, Life* life, char direction)
+{
+    Vector2 new_position = apply_direction((Vector2){life->x, life->y}, direction);
+    if (new_position.x >= 0 && new_position.x < world->size.x && new_position.y >= 0 && new_position.y < world->size.y)
+    {
+        world->creature[(Int)new_position.x][(Int)new_position.y] = world->creature[life->x][life->y];
+        world->creature[life->x][life->y] = -1;
+        life->x = new_position.x;
+        life->y = new_position.y;
+    }
+}
+
+void increase_preference(PreferenceList *preferences, char type, int value)
 {
     int index = -1;
     for (int i = 0; i < preferences->size; i++)
@@ -305,7 +317,45 @@ void increaseoradd_preference(PreferenceList *preferences, char type, int value)
     }
 }
 
-char is_trait(CharList traits, char trait)
+void add_need(NeedList *needs, char* name, Float value)//find need with name, if found add value
+{
+    for (int i = 0; i < needs->size; i++)
+    {
+        if (strcmp(needs->data[i].name, name) == 0)
+        {
+            needs->data[i].value += value;
+            return;
+        }
+    }
+}
+
+Float get_need(NeedList *needs, char* name)
+{
+    Float result = -1;
+    for (int i = 0; i < needs->size; i++)
+    {
+        if (strcmp(needs->data[i].name, name) == 0)
+        {
+            result = needs->data[i].value;
+            break;
+        }
+    }
+    return result;
+}
+
+void set_need(NeedList *needs, char* name, Float value)
+{
+    for (int i = 0; i < needs->size; i++)
+    {
+        if (strcmp(needs->data[i].name, name) == 0)
+        {
+            needs->data[i].value = value;
+            return;
+        }
+    }
+}
+
+char have_trait(CharList traits, char trait)
 {
     for (int i = 0; i < traits.size; i++)
     {
@@ -315,6 +365,68 @@ char is_trait(CharList traits, char trait)
         }
     }
     return 0;
+}
+
+char preferred_direction(PreferenceList preferences, char default_direction)
+{
+    if (preferences.size == 0)
+    {
+        return random_int(0, 7);
+    }
+    else
+    {
+        return default_direction;
+    }
+}
+
+char find_free_direction(World* world, Life* life)
+{
+    char direction = random_int(0, 7);
+    Vector2 new_position;
+    for (int i = 0; i < 8; i++)
+    {
+        Vector2 new_position = apply_direction((Vector2){life->x, life->y}, direction);
+        if (world->creature[(Int)new_position.x][(Int)new_position.y] == -1)
+        {
+            return direction;
+        }
+    }
+    return -1;
+}
+
+void _new_life(World* world, int specie, int birth_x, int birth_y, int birth_time)
+{
+    Life life;
+    life.specie = specie;
+    life.birth_x = birth_x;
+    life.birth_y = birth_y;
+    life.birth_time = birth_time;
+    life.x = life.birth_x;
+    life.y = life.birth_y;
+
+    // make a hard copy of the preferences and needs from the specie
+    life.preferences = list_init(PreferenceList);
+    
+    for (int i = 0; i < world->species->data[specie].preferences->size; i++)
+    {
+        Preference preference;
+        preference.type = world->species->data[specie].preferences->data[i].type;
+        preference.value = world->species->data[specie].preferences->data[i].value;
+        
+        list_push(*life.preferences, preference);
+    }
+
+    life.needs = list_init(NeedList);
+
+    Need need = {name: "energy", value: 50, max: 100};
+
+    list_push(*life.needs, need);
+
+    world->species->data[specie].population++;
+
+    world->creature[life.x][life.y] = world->lifes->size;
+
+    list_push(*world->lifes, life);
 }
 
 // bruter functions
@@ -328,13 +440,16 @@ function(new_world)
     register_number(vm, "world.size.y", size_y);
     
     World* world = malloc(sizeof(World));
-    world->creature = make_map16(size_x, size_y, 0);
+    world->creature = make_map16(size_x, size_y, -1);
     world->temperature = make_map8(size_x, size_y, 25);
-    world->quality = make_map8(size_x, size_y, 100);
+    world->light = make_map8(size_x, size_y, 100);
     world->material = make_map8(size_x, size_y, 0);
     
     world->species = list_init(SpecieList);
     world->lifes = list_init(LifeList);
+    world->time = 0;
+
+    world->size = (Vector2){size_x, size_y};
 
     Int index = new_var(vm);
     data(index).pointer = world;
@@ -345,237 +460,215 @@ function(new_world)
 
 function(new_specie)
 {
-    Int world_index = arg_i(0);
-    World* world = data(world_index).pointer;
+    World* world = (World*)arg(0).pointer;
 
     Specie specie;
-    specie.name = arg(1).string;
+    specie.name = generate_name(1);
     specie.behaviours = list_init(BehaviourList);
     specie.preferences = list_init(PreferenceList);
     specie.traits = list_init(CharList);
     specie.needs = list_init(NeedList);
+    specie.population = 0;
+
+    Need _energy = {name: "energy", value: 50, max: 100};
+    list_push(*specie.needs, _energy);
 
     list_push(*world->species, specie);
-
-    return new_number(vm, world->species->size);
+    
+    return new_number(vm, world->species->size-1);
 }
 
 function(new_life)
 {
-    Int world_index = arg_i(0);
-    World* world = data(world_index).pointer;
+    World* world = (World*)arg(0).pointer;
 
-    Life life;
-    life.name = arg(1).string;
-    life.specie = arg(2).number;
-    life.type = arg(3).number;
-    life.birth_x = arg(4).number;
-    life.birth_y = arg(5).number;
-    life.birth_time = arg(6).number;
-    life.x = life.birth_x;
-    life.y = life.birth_y;
-    life.needs = list_init(NeedList);
+    Int specie_index = arg(1).number;
+    Int birth_x = arg(2).number;
+    Int birth_y = arg(3).number;
 
-    list_push(*world->lifes, life);
+    Int birth_time = world->time;
 
-    return new_number(vm, world->lifes->size);
+    _new_life(world, specie_index, birth_x, birth_y, birth_time);
+
+    return new_number(vm, world->lifes->size-1);
 }
 
-function(creature_move)
+function(push_trait)
 {
-    Int world_index = arg_i(0);
-    World* world = data(world_index).pointer;
+    World* world = (World*)arg(0).pointer;
+    Int specie_index = arg(1).number;
+    Int trait = arg(2).number;
 
-    Int life_index = arg_i(1);
-    Life* life = &world->lifes->data[life_index];
+    Specie* specie = &world->species->data[specie_index];
+    list_push(*specie->traits, trait);
 
-    int x = life->x;
-    int y = life->y;
-
-    char direction = arg(2).number;
-    Vector2 position = {x, y};
-    position = apply_direction(position, direction);
-    if (position.x < 0 || position.x >= data(hash_find(vm, "world.size.x")).number || position.y < 0 || position.y >= data(hash_find(vm, "world.size.y")).number)
-    {
-        return -1;
-    }
-    else
-    {
-        if (world->creature[(Int)position.x][(Int)position.y] == 0)
-        {
-            world->creature[(Int)position.x][(Int)position.y] = world->creature[x][y];
-            world->creature[x][y] = 0;
-            life->x = position.x;
-            life->y = position.y;
-            return 1;
-        }
-        else
-        {
-            // maybe merge, maybe consume
-            // TODO
-        }
-        return 1;
-    }
-    
     return -1;
 }
 
-function(creature_grow)
+function(push_behaviour)
 {
-    Int world_index = arg_i(0);
-    World* world = data(world_index).pointer;
+    World* world = (World*)arg(0).pointer;
+    Int specie_index = arg(1).number;
 
-    Int life_index = arg_i(1);
+    Behaviour behaviour;
+    behaviour.name = arg(2).string;
+    behaviour.code = arg(3).string;
+
+    Specie* specie = &world->species->data[specie_index];
+    list_push(*specie->behaviours, behaviour);
+
+    return -1;
+}
+
+function(push_preference)
+{
+    World* world = (World*)arg(0).pointer;
+    Int specie_index = arg(1).number;
+    char type = arg(2).string[0];
+    int value = arg(3).number;
+
+    Specie* specie = &world->species->data[specie_index];
+    increase_preference(specie->preferences, type, value);
+
+    return -1;
+}
+
+function(push_need)
+{
+    World* world = (World*)arg(0).pointer;
+    Int specie_index = arg(1).number;
+    char* name = arg(2).string;
+    int value = arg(3).number;
+    int max = arg(4).number;
+
+    Specie* specie = &world->species->data[specie_index];
+    Need need = {name: name, value: value, max: max};
+    list_push(*specie->needs, need);
+
+    return -1;
+}
+
+
+
+function(life_photosynthesis)
+{
+    World* world = (World*)arg(0).pointer;
+    Int life_index = arg(1).number;
     Life* life = &world->lifes->data[life_index];
 
-    CharList *traits = world->species->data[life->specie].traits;
-
-    if (is_trait(*traits, TRAIT_PHOTOSYNTHESIS))
+    if (have_trait(*world->species->data[life->specie].traits, TRAIT_PHOTOSYNTHESIS))
     {
-        // lets find a direction preference
-        int direction = -1;
+        // each 10 light points, 1 energy
+        Float energy = world->light[life->x][life->y] / 10;
+        add_need(life->needs, "energy", energy);
 
-        for (int i = 0; i < world->species->data[life->specie].preferences->size; i++)
+        // if energy is greater than 50, the plant will grow
+        if (get_need(life->needs, "energy") >= 50)
         {
-            if (world->species->data[life->specie].preferences->data[i].type == PREFERENCE_DIRECTION)
+            // lets find a random direction
+            char direction = preferred_direction(*world->species->data[life->specie].preferences, random_int(0, 7));
+            if (world->creature[life->x][life->y] != -1)
             {
-                direction = world->species->data[life->specie].preferences->data[i].value;
-                break;
-            }
-        }
-
-        if (direction == -1)
-        {
-            while (direction == -1 || direction == CENTER)
-            {
-                direction = random_int(0, 8);
-            }
-            // add direction preference
-            increaseoradd_preference(world->species->data[life->specie].preferences, PREFERENCE_DIRECTION, direction);
-        }
-
-        // lets check if there is a creature in the direction
-        Vector2 position = {life->x, life->y};
-        position = apply_direction(position, direction);
-        if (position.x < 0 || position.x >= data(hash_find(vm, "world.size.x")).number || position.y < 0 || position.y >= data(hash_find(vm, "world.size.y")).number)
-        {
-            position = (Vector2){life->x, life->y};
-            for (int i = 1; i < 9; i++)
-            {
-                if ( i != CENTER)
+                direction = find_free_direction(world, life);
+                if (direction == -1)
                 {
-                    position = apply_direction(position, i);
-                    if (position.x >= 0 && position.x < data(hash_find(vm, "world.size.x")).number && position.y >= 0 && position.y < data(hash_find(vm, "world.size.y")).number)
-                    {
-                        if (world->creature[(Int)position.x][(Int)position.y] == 0)
-                        {
-                            world->creature[(Int)position.x][(Int)position.y] = life_index;
-                            // add direction preference
-                            Preference preference;
-                            preference.type = PREFERENCE_DIRECTION;
-                            preference.value = direction;
-                            list_push(*world->species->data[life->specie].preferences, preference);
-                            return 1;
-                        }
-                    }
+                    // canf move
+                    return -1;
                 }
             }
-        }
-        else
-        {
-            if (world->creature[(Int)position.x][(Int)position.y] == 0)
+            
+            Vector2 new_position = apply_direction((Vector2){life->x, life->y}, direction);
+            if (new_position.x >= 0 && new_position.x < world->size.x && new_position.y >= 0 && new_position.y < world->size.y)
             {
-                world->creature[(Int)position.x][(Int)position.y] = life_index;
-                return 1;
-            }
-            else
-            {
-                // maybe merge, maybe consume
-                // TODO
+                
+                _new_life(world, life->specie, new_position.x, new_position.y, world->time);
             }
         }
 
-        // photosynthesis
-        for (int i = 1; i < 9; i++)
-        {
-
-        }
     }
-    else
-    {
-        // animals cant grow(not in this way)
-    }
-    
 
-    return 1;
-}
-
-function(creature_consume)
-{
-    Int world_index = arg_i(0);
-    World* world = data(world_index).pointer;
-
-    Int life_index = arg_i(1);
-    Life* life = &world->lifes->data[life_index];
-
-
-
-    CharList *traits = world->species->data[life->specie].traits;
-    
-    if(list_find(*traits, TRAIT_PHOTOSYNTHESIS) != -1)
-    {
-        // photosynthesis
-    }
-    else
-    {
-
-        char direction = arg(2).number;
-        Vector2 position = {life->x, life->y};
-        position = apply_direction(position, direction);
-        if (position.x < 0 || position.x >= data(hash_find(vm, "world.size.x")).number || position.y < 0 || position.y >= data(hash_find(vm, "world.size.y")).number)
-        {
-            return -1;
-        }
-        else
-        {
-            if (world->material[(Int)position.x][(Int)position.y] == MATERIAL_MEAT)
-            {
-                world->material[(Int)position.x][(Int)position.y] = 0;
-                return 1;
-            }
-            else
-            {
-                return 0;
-            }
-        }
-    }
-}
-
-function(print_random_name)
-{
-    char* name = generate_name(2);
-    printf("%s\n", name);
-    free(name);
     return -1;
 }
 
-function(print_scrambled_name)
+function(game_turn)
 {
-    char* name = generate_name(2);
-    name = scramble_name(name);
-    printf("%s\n", name);
-    free(name);
+    World* world = (World*)arg(0).pointer;
+    Int self = hash_find(vm, "self");
+
+
+    for (int i = 0; i < world->lifes->size; i++)
+    {
+        Life* life = &world->lifes->data[i];
+        for (int j = 0; j < world->species->data[life->specie].behaviours->size; j++)
+        {
+            vm->stack->data[self].number = i;
+            Behaviour* behaviour = &world->species->data[life->specie].behaviours->data[j];
+            eval(vm, behaviour->code);
+            
+        }
+    }
+
+    // print map
+    for (int i = 0; i < world->size.x; i++)
+    {
+        for (int j = 0; j < world->size.y; j++)
+        {
+            if (world->creature[i][j] != -1)
+            {
+                printf("X");
+            }
+            else
+            {
+                printf(".");
+            }
+        }
+        printf("\n");
+    }
+    printf("\n");
+
+    world->time++;
     return -1;
 }
 
-function(print_evolved_name)
+function(free_world)
 {
-    char* name = generate_name(2);
-    name = evolve_name(name);
-    name = evolve_name(name);
-    name = evolve_name(name);
-    printf("%s\n", name);
-    free(name);
+    World* world = (World*)arg(0).pointer;
+    for (int i = 0; i < world->species->size; i++)
+    {
+        free(world->species->data[i].name);
+        list_free(*world->species->data[i].behaviours);
+        list_free(*world->species->data[i].preferences);
+        list_free(*world->species->data[i].traits);
+        list_free(*world->species->data[i].needs);
+    }
+    list_free(*world->species);
+    for (int i = 0; i < world->lifes->size; i++)
+    {
+        list_free(*world->lifes->data[i].preferences);
+        list_free(*world->lifes->data[i].needs);
+    }
+    list_free(*world->lifes);
+    for (int i = 0; i < world->size.x; i++)
+    {
+        free(world->creature[i]);
+    }
+    free(world->creature);
+    for (int i = 0; i < world->size.x; i++)
+    {
+        free(world->temperature[i]);
+    }
+    free(world->temperature);
+    for (int i = 0; i < world->size.x; i++)
+    {
+        free(world->light[i]);
+    }
+    free(world->light);
+    for (int i = 0; i < world->size.x; i++)
+    {
+        free(world->material[i]);
+    }
+    free(world->material);
+    free(world);
     return -1;
 }
 
@@ -584,8 +677,47 @@ init(populosus)
     register_builtin(vm, "new_world", new_world);
     register_builtin(vm, "new_specie", new_specie);
     register_builtin(vm, "new_life", new_life);
+    register_builtin(vm, "push_trait", push_trait);
+    register_builtin(vm, "push_behaviour", push_behaviour);
+    register_builtin(vm, "push_preference", push_preference);
+    register_builtin(vm, "push_need", push_need);
 
-    register_builtin(vm, "print_random_name", print_random_name);
-    register_builtin(vm, "print_scrambled_name", print_scrambled_name);
-    register_builtin(vm, "print_evolved_name", print_evolved_name);
+    register_builtin(vm, "game_turn", game_turn);
+
+    register_builtin(vm, "life_photosynthesis", life_photosynthesis);
+
+    register_builtin(vm, "free_world", free_world);
+
+    register_number(vm, "LEFT_DOWN", LEFT_DOWN);
+    register_number(vm, "DOWN", DOWN);
+    register_number(vm, "RIGHT_DOWN", RIGHT_DOWN);
+    register_number(vm, "LEFT", LEFT);
+    register_number(vm, "CENTER", CENTER);
+    register_number(vm, "RIGHT", RIGHT);
+    register_number(vm, "LEFT_UP", LEFT_UP);
+    register_number(vm, "UP", UP);
+    register_number(vm, "RIGHT_UP", RIGHT_UP);
+
+    register_number(vm, "trait.herbivore", TRAIT_HERBIVORE);
+    register_number(vm, "trait.carnivore", TRAIT_CARNIVORE);
+    register_number(vm, "trait.sleep", TRAIT_SLEEP);
+    register_number(vm, "trait.reproduce", TRAIT_REPRODUCE);
+    register_number(vm, "trait.photosynthesis", TRAIT_PHOTOSYNTHESIS);
+    register_number(vm, "trait.grow", TRAIT_GROW);
+    register_number(vm, "trait.breath", TRAIT_BREATH);
+    register_number(vm, "trait.eat", TRAIT_EAT);
+    register_number(vm, "trait.move", TRAIT_MOVE);
+
+    register_number(vm, "preference.temperature", PREFERENCE_TEMPERATURE);
+    register_number(vm, "preference.direction", PREFERENCE_DIRECTION);
+    register_number(vm, "preference.number", PREFERENCE_NUMBER);
+    register_number(vm, "preference.material", PREFERENCE_MATERIAL);
+    register_number(vm, "preference.light", PREFERENCE_LIGHT);
+
+    register_number(vm, "material.salt", MATERIAL_SALT);
+    register_number(vm, "material.herb", MATERIAL_HERB);
+    register_number(vm, "material.meat", MATERIAL_MEAT);
+
+    register_var(vm, "self");
+    
 }

@@ -1,5 +1,5 @@
-bruterc ./src/populosus.c
-bruterc ./src/std.c
+bruterc "./src/populosus.c --debug"
+bruterc "./src/std.c --debug"
 
 rm -rf ./lib
 mkdir ./lib

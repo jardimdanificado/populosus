@@ -1,3 +1,4 @@
 include
-bruter
+.bruter
 *.so
+valgrind-out*

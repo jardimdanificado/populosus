@@ -26,7 +26,8 @@ enum
     PREFERENCE_TEMPERATURE = 1,
     PREFERENCE_DIRECTION,
     PREFERENCE_NUMBER,
-    PREFERENCE_FOOD
+    PREFERENCE_MATERIAL,
+    PREFERENCE_LIGHT
 };
 
 enum 
@@ -39,8 +40,7 @@ enum
     TRAIT_REPRODUCE,
     TRAIT_GROW,
     TRAIT_HERBIVORE,
-    TRAIT_CARNIVORE,
-
+    TRAIT_CARNIVORE
 };
 
 enum 
@@ -87,14 +87,14 @@ typedef struct
     PreferenceList *preferences;
     CharList *traits;
     NeedList *needs;
+    Int population;
 } Specie;
 typedef List(Specie) SpecieList;
 
 typedef struct
 {
-    char* name;
+    //char* name;
     short specie;
-    short type;
 
     // birth
     int birth_x;
@@ -123,8 +123,10 @@ typedef struct
 
     Map16 creature;
     Map8 temperature;
-    Map8 quality; // water quality
     Map8 material;
     Map8 light;
+    Vector2 size;
+
+    Int time;
 } World;
 
