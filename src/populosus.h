@@ -97,8 +97,8 @@ typedef struct
     int y;
 
     // needs
-    short energy;
-    short health;
+    float energy;
+    float health;
 } Life;
 typedef List(Life) LifeList;
 

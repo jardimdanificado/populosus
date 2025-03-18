@@ -501,8 +501,19 @@ function(life_photosynthesis)
     if (have_trait(*life->specie->traits, TRAIT_PHOTOSYNTHESIS))
     {
         // each 100 light points, 1 energy
-        life->energy += world->light[life->x][life->y] / (110 - life->health);
+        life->energy += world->light[life->x][life->y] / (110 - (life->health/2));
+    }
+    
+    return -1;
+}
 
+function(life_grow)
+{
+    World* world = (World*)arg(0).pointer;
+    Int life_index = arg(1).number;
+    Life* life = &world->lifes->data[life_index];
+    if (have_trait(*life->specie->traits, TRAIT_PHOTOSYNTHESIS))
+    {
         // if energy is greater than 50, the plant will grow
         if (life->energy >= 50)
         {
@@ -526,11 +537,39 @@ function(life_photosynthesis)
                 life->x = new_position.x;
                 life->y = new_position.y;
             }
-            life->energy -= 50;
+            life->energy -= (50 - (life->health / 8));
+            life->health /= 2;
         }
-
     }
-    
+}
+
+function(life_regenerate)
+{
+    World* world = (World*)arg(0).pointer;
+    Int life_index = arg(1).number;
+    Life* life = &world->lifes->data[life_index];
+
+    if (have_trait(*life->specie->traits, TRAIT_PHOTOSYNTHESIS) && life->energy > 0 && life->health < 99)
+    { // turn energy into health
+        life->health += 3 - (life->health / 50);
+        life->energy -= 2 * (3 - (life->health / 50));
+    }
+
+    return -1;
+}
+
+function(life_decay)
+{
+    World* world = (World*)arg(0).pointer;
+    Int life_index = arg(1).number;
+    Life* life = &world->lifes->data[life_index];
+
+    float decay_rate = 3 - (life->health / 50);
+
+    if (life->health > decay_rate)
+    {
+        life->health -= decay_rate;
+    }
     return -1;
 }
 
@@ -621,6 +660,9 @@ init(populosus)
     register_builtin(vm, "game_turn", game_turn);
 
     register_builtin(vm, "life_photosynthesis", life_photosynthesis);
+    register_builtin(vm, "life_grow", life_grow);
+    register_builtin(vm, "life_regenerate", life_regenerate);
+    register_builtin(vm, "life_decay", life_decay);
 
     register_builtin(vm, "free_world", free_world);
 
