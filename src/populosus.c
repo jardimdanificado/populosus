@@ -237,6 +237,19 @@ Map32 make_map32(Float size_x, Float size_y, int default_value)
     return map;
 }
 
+MapFloat make_map_float(Float size_x, Float size_y, float default_value)
+{
+    MapFloat map = malloc(sizeof(float*) * size_x);
+    for (int i = 0; i < size_x; i++)
+    {
+        map[i] = malloc(sizeof(float) * size_y);
+        for (int j = 0; j < size_y; j++)
+        {
+            map[i][j] = default_value;
+        }
+    }
+    return map;
+}
 
 Vector2 apply_direction(Vector2 vector, char direction)
 {
@@ -384,6 +397,7 @@ void _new_life(World* world, Specie* specie, int birth_x, int birth_y, int birth
     life.energy = 50;
     life.health = 100;
     specie->population++;
+    life.state = STATE_DEFAULT;
 
     world->creature[life.x][life.y] = world->lifes->size;
 
@@ -402,9 +416,8 @@ function(new_world)
     
     World* world = malloc(sizeof(World));
     world->creature = make_map16(size_x, size_y, -1);
-    world->temperature = make_map8(size_x, size_y, 25);
-    world->light = make_map8(size_x, size_y, 100);
-    world->material = make_map8(size_x, size_y, 0);
+    world->temperature = make_map_float(size_x, size_y, 20);
+    world->light = make_map_float(size_x, size_y, 100);
     
     world->species = list_init(SpecieList);
     world->lifes = list_init(LifeList);
@@ -435,6 +448,11 @@ function(new_specie)
     Int result = new_var(vm);
     data(result).pointer = &world->species->data[world->species->size-1];
 
+    // default preferences
+    increase_preference(specie.preferences, MIN_TEMPERATURE, 0);
+    increase_preference(specie.preferences, MAX_TEMPERATURE, 100);
+    increase_preference(specie.preferences, MIN_LIGHT, 0);
+    increase_preference(specie.preferences, MAX_LIGHT, 1000);
 
     return result;
 }
@@ -480,7 +498,7 @@ function(push_behaviour)
     return -1;
 }
 
-function(push_preference)
+function(set_preference)
 {
     World* world = (World*)arg(0).pointer;
     Int specie_index = arg(1).number;
@@ -493,15 +511,37 @@ function(push_preference)
     return -1;
 }
 
-function(life_photosynthesis)
+// behaviours
+// behaviours
+// behaviours
+
+function(life_burn_energy) // burn energy and increase temperature
 {
     World* world = (World*)arg(0).pointer;
     Int life_index = arg(1).number;
     Life* life = &world->lifes->data[life_index];
-    if (have_trait(*life->specie->traits, TRAIT_PHOTOSYNTHESIS))
+    if (life->energy > 0)
     {
-        // each 100 light points, 1 energy
-        life->energy += world->light[life->x][life->y] / (110 - (life->health/2));
+        life->energy--;
+        world->temperature[life->x][life->y] += 0.1;
+    }
+    else
+    {
+        life->health--;
+    }
+    
+    return -1;
+}
+
+function(life_photosynthesis) // consume light and turn it into energy
+{
+    World* world = (World*)arg(0).pointer;
+    Int life_index = arg(1).number;
+    Life* life = &world->lifes->data[life_index];
+    if (have_trait(*life->specie->traits, TRAIT_PHOTOSYNTHESIS) && world->light[life->x][life->y] > 0)
+    {
+        
+        life->energy += 50;
     }
     
     return -1;
@@ -518,8 +558,19 @@ function(life_grow)
         if (life->energy >= 50)
         {
             // lets find a random direction
-            char direction = preferred_direction(*life->specie->preferences, random_int(1, 9));
-            if (world->creature[life->x][life->y] != -1)
+            char direction;
+
+            if(percent_chance(90))
+            {
+                direction = random_int(1, 9);
+            }
+            else
+            {
+                direction = preferred_direction(*life->specie->preferences, CENTER);
+            }
+
+            Vector2 new_position = apply_direction((Vector2){life->x, life->y}, direction);
+            if (new_position.x >= 0 && new_position.x < world->size.x && new_position.y >= 0 && new_position.y < world->size.y && world->creature[(Int)new_position.x][(Int)new_position.y] != -1)
             {
                 direction = find_free_direction(world, life);
                 if (direction == -1)
@@ -529,7 +580,7 @@ function(life_grow)
                 }
             }
             
-            Vector2 new_position = apply_direction((Vector2){life->x, life->y}, direction);
+            new_position = apply_direction((Vector2){life->x, life->y}, direction);
             if (new_position.x >= 0 && new_position.x < world->size.x && new_position.y >= 0 && new_position.y < world->size.y)
             {
                 increase_preference(life->specie->preferences, PREFERENCE_DIRECTION, direction);
@@ -543,33 +594,14 @@ function(life_grow)
     }
 }
 
-function(life_regenerate)
+function(life_check)
 {
     World* world = (World*)arg(0).pointer;
     Int life_index = arg(1).number;
     Life* life = &world->lifes->data[life_index];
 
-    if (have_trait(*life->specie->traits, TRAIT_PHOTOSYNTHESIS) && life->energy > 0 && life->health < 99)
-    { // turn energy into health
-        life->health += 3 - (life->health / 50);
-        life->energy -= 2 * (3 - (life->health / 50));
-    }
 
-    return -1;
-}
 
-function(life_decay)
-{
-    World* world = (World*)arg(0).pointer;
-    Int life_index = arg(1).number;
-    Life* life = &world->lifes->data[life_index];
-
-    float decay_rate = 3 - (life->health / 50);
-
-    if (life->health > decay_rate)
-    {
-        life->health -= decay_rate;
-    }
     return -1;
 }
 
@@ -582,6 +614,12 @@ function(game_turn)
     for (int i = 0; i < world->lifes->size; i++)
     {
         Life* life = &world->lifes->data[i];
+
+        if (life->state == STATE_DEAD) // this guy cant do anything, next!
+        {
+            continue;
+        }
+
         for (int j = 0; j < life->specie->behaviours->size; j++)
         {
             vm->stack->data[self].number = i;
@@ -640,11 +678,6 @@ function(free_world)
         free(world->light[i]);
     }
     free(world->light);
-    for (int i = 0; i < world->size.x; i++)
-    {
-        free(world->material[i]);
-    }
-    free(world->material);
     free(world);
     return -1;
 }
@@ -656,13 +689,14 @@ init(populosus)
     register_builtin(vm, "new_life", new_life);
     register_builtin(vm, "push_trait", push_trait);
     register_builtin(vm, "push_behaviour", push_behaviour);
-    register_builtin(vm, "push_preference", push_preference);
+    register_builtin(vm, "set_preference", set_preference);
     register_builtin(vm, "game_turn", game_turn);
 
     register_builtin(vm, "life_photosynthesis", life_photosynthesis);
     register_builtin(vm, "life_grow", life_grow);
-    register_builtin(vm, "life_regenerate", life_regenerate);
-    register_builtin(vm, "life_decay", life_decay);
+    register_builtin(vm, "life_burn_energy", life_burn_energy);
+    register_builtin(vm, "life_check", life_check);
+
 
     register_builtin(vm, "free_world", free_world);
 
@@ -688,13 +722,8 @@ init(populosus)
 
     register_number(vm, "preference.temperature", PREFERENCE_TEMPERATURE);
     register_number(vm, "preference.direction", PREFERENCE_DIRECTION);
-    register_number(vm, "preference.number", PREFERENCE_NUMBER);
-    register_number(vm, "preference.material", PREFERENCE_MATERIAL);
     register_number(vm, "preference.light", PREFERENCE_LIGHT);
 
-    register_number(vm, "material.salt", MATERIAL_SALT);
-    register_number(vm, "material.herb", MATERIAL_HERB);
-    register_number(vm, "material.meat", MATERIAL_MEAT);
 
     register_var(vm, "self");
     

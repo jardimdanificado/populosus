@@ -15,19 +15,21 @@ typedef struct
 
 enum 
 {
-    MATERIAL_SALT = 1,
-    MATERIAL_HERB,
-    MATERIAL_MEAT,
-
+    STATE_DEAD, // the dead state, no behaviours will be done
+    STATE_DEFAULT, // the default state, will do all the behaviours
+    STATE_SLEEP, // the sleep state, some behaviours will not be done
+    STATE_HIBERNATE, // the hibernate state, just decay behaviour will be done
 };
 
 enum 
 {
     PREFERENCE_TEMPERATURE = 1,
     PREFERENCE_DIRECTION,
-    PREFERENCE_NUMBER,
-    PREFERENCE_MATERIAL,
-    PREFERENCE_LIGHT
+    PREFERENCE_LIGHT,
+    MIN_TEMPERATURE,
+    MIN_LIGHT,
+    MAX_TEMPERATURE,
+    MAX_LIGHT,
 };
 
 enum 
@@ -99,6 +101,9 @@ typedef struct
     // needs
     float energy;
     float health;
+    
+    char state;
+
 } Life;
 typedef List(Life) LifeList;
 
@@ -106,6 +111,7 @@ typedef List(Life) LifeList;
 typedef char** Map8;
 typedef short** Map16;
 typedef int** Map32;
+typedef float** MapFloat;
 
 typedef struct
 {
@@ -113,9 +119,8 @@ typedef struct
     LifeList *lifes;
 
     Map16 creature;
-    Map8 temperature;
-    Map8 material;
-    Map8 light;
+    MapFloat temperature;
+    MapFloat light;
     Vector2 size;
 
     Int time;
