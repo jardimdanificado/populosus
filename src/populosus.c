@@ -392,15 +392,13 @@ void _new_life(World* world, Specie* specie, int birth_x, int birth_y, int birth
     life.birth_x = birth_x;
     life.birth_y = birth_y;
     life.birth_time = birth_time;
-    life.x = life.birth_x;
-    life.y = life.birth_y;
-    life.energy = 50;
-    life.health = 100;
-    specie->population++;
+    life.x = birth_x;
+    life.y = birth_y;
+    life.energy = specie->limits.max.energy / 2;
+    life.health = specie->limits.max.health;
     life.state = STATE_DEFAULT;
 
-    world->creature[life.x][life.y] = world->lifes->size;
-
+    printf("specie %s max energy %f and max health %f\n", specie->name, specie->limits.max.energy, specie->limits.max.health);
     list_push(*world->lifes, life);
 }
 
@@ -417,7 +415,7 @@ function(new_world)
     World* world = malloc(sizeof(World));
     world->creature = make_map16(size_x, size_y, -1);
     world->temperature = make_map_float(size_x, size_y, 20);
-    world->light = make_map_float(size_x, size_y, 100);
+    world->light = make_map_float(size_x, size_y, 1024);
     
     world->species = list_init(SpecieList);
     world->lifes = list_init(LifeList);
@@ -442,17 +440,30 @@ function(new_specie)
     specie.preferences = list_init(PreferenceList);
     specie.traits = list_init(CharList);
     specie.population = 0;
+    specie.dna[0] = 1;
+    specie.dna[1] = 1;
+    specie.dna[2] = 1;
+    specie.dna[3] = 1;
+    specie.dna[4] = 1;
+    specie.dna[5] = 1;
+    specie.dna[6] = 1;
+    specie.dna[7] = 1;
+
+    specie.limits.min.temperature = 0;
+    specie.limits.max.temperature = 128;
+    specie.limits.min.light = 0;
+    specie.limits.max.light = 2048;
+    specie.limits.min.energy = 0;
+    specie.limits.max.energy = 100;
+    specie.limits.min.health = 0;
+    specie.limits.max.health = 100;
 
     list_push(*world->species, specie);
     
     Int result = new_var(vm);
     data(result).pointer = &world->species->data[world->species->size-1];
 
-    // default preferences
-    increase_preference(specie.preferences, MIN_TEMPERATURE, 0);
-    increase_preference(specie.preferences, MAX_TEMPERATURE, 100);
-    increase_preference(specie.preferences, MIN_LIGHT, 0);
-    increase_preference(specie.preferences, MAX_LIGHT, 1000);
+    
 
     return result;
 }
@@ -468,7 +479,7 @@ function(new_life)
     Int birth_time = world->time;
 
     _new_life(world, specie, birth_x, birth_y, birth_time);
-
+    printf("new life of specie \"%s\" has born at %d %d at time %d with energy %f and health %f\n", specie->name, birth_x, birth_y, birth_time, specie->limits.max.energy / 2, specie->limits.max.health);
     return new_number(vm, world->lifes->size-1);
 }
 
@@ -520,16 +531,25 @@ function(life_burn_energy) // burn energy and increase temperature
     World* world = (World*)arg(0).pointer;
     Int life_index = arg(1).number;
     Life* life = &world->lifes->data[life_index];
-    if (life->energy > 0)
-    {
-        life->energy--;
-        world->temperature[life->x][life->y] += 0.1;
-    }
-    else
-    {
-        life->health--;
-    }
     
+    float amount = arg(2).number;
+    float rate = 1;
+    //if arg(3) exists use it as burn rate
+    if (args->size > 3)
+    {
+        rate = arg(3).number;
+    }
+    rate *= life->specie->dna[4];
+    
+    life->energy -= amount * life->specie->dna[4] * life->specie->dna[1];
+    life->health -= amount * life->specie->dna[3] * 0.999;
+    world->temperature[life->x][life->y] += amount * rate;
+    printf("life %d of specie \"%s\" burned %f energy, and %f health\n", life_index, life->specie->name, amount, amount * rate);
+
+
+
+    
+
     return -1;
 }
 
@@ -538,10 +558,36 @@ function(life_photosynthesis) // consume light and turn it into energy
     World* world = (World*)arg(0).pointer;
     Int life_index = arg(1).number;
     Life* life = &world->lifes->data[life_index];
-    if (have_trait(*life->specie->traits, TRAIT_PHOTOSYNTHESIS) && world->light[life->x][life->y] > 0)
+    if (have_trait(*life->specie->traits, TRAIT_PHOTOSYNTHESIS))
     {
+        // generate energy from light based of the amount of light avaliable, can absobing at max 10% of its max, and 5% of the world light of the current tile
+        // this means in a world with 2048 light, the plant can absorb each turn 102.4 light, and 51.2 light from the tile
+        float light = world->light[life->x][life->y];
+        float max_light = life->specie->limits.max.light;
+        float max_energy = life->specie->limits.max.energy;
+        float max_light_gain = max_light * 0.05;
+        float light_gain = 0;
+
+        if (light > max_light_gain)
+        {
+            light_gain = max_light_gain * (0.1 * life->specie->dna[1]) * (life->health / life->specie->limits.max.health);
+        }
+        else
+        {
+            light_gain = light;
+        }
+
+        if (light_gain > max_energy * (0.1 * life->specie->dna[1]))
+        {
+            light_gain = max_energy * (0.1 * life->specie->dna[1]);
+        }
+
+
+
         
-        life->energy += 50;
+
+        life->energy += light_gain;
+        world->light[life->x][life->y] -= light_gain;
     }
     
     return -1;
@@ -552,15 +598,16 @@ function(life_grow)
     World* world = (World*)arg(0).pointer;
     Int life_index = arg(1).number;
     Life* life = &world->lifes->data[life_index];
+
     if (have_trait(*life->specie->traits, TRAIT_PHOTOSYNTHESIS))
     {
         // if energy is greater than 50, the plant will grow
-        if (life->energy >= 50)
+        if (life->energy >= (50*life->specie->dna[1]))
         {
             // lets find a random direction
             char direction;
 
-            if(percent_chance(90))
+            if(percent_chance(90)*life->specie->dna[0])// (90*dna[0])% chance to not follow the preference
             {
                 direction = random_int(1, 9);
             }
@@ -573,9 +620,10 @@ function(life_grow)
             if (new_position.x >= 0 && new_position.x < world->size.x && new_position.y >= 0 && new_position.y < world->size.y && world->creature[(Int)new_position.x][(Int)new_position.y] != -1)
             {
                 direction = find_free_direction(world, life);
-                if (direction == -1)
+                if (direction == -1 || direction == CENTER)
                 {
-                    // canf move
+                    // canf move, use the same energy to increase health
+                    life->health += ((50 - (life->health / 8))*life->specie->dna[2]*life->specie->dna[3]);
                     return -1;
                 }
             }
@@ -589,7 +637,18 @@ function(life_grow)
                 life->y = new_position.y;
             }
             life->energy -= (50 - (life->health / 8));
-            life->health /= 2;
+            life->health /= 1.5;
+            printf("life %d of specie \"%s\" grew to %d %d\n", life_index, life->specie->name, life->x, life->y);
+            printf("life %d of specie \"%s\" now has %f energy and %f health\n", life_index, life->specie->name, life->energy, life->health);
+        }
+        else 
+        {
+            // if energy is less than 50 and bigger than 2, use 1 energy to gain 0.5 health
+            if (life->energy > 2)
+            {
+                life->energy -= 1*life->specie->dna[1];
+                life->health += (0.5*life->specie->dna[2]);
+            }
         }
     }
 }
@@ -600,7 +659,47 @@ function(life_check)
     Int life_index = arg(1).number;
     Life* life = &world->lifes->data[life_index];
 
+    if (life->health <= life->specie->limits.min.health)
+    {
+        life->state = STATE_DEAD;
+        printf("life %d of specie \"%s\" died at time %d from lack of health, it had %f health, and the minimum of its specie is %f\n", life_index, life->specie->name, world->time, life->health, life->specie->limits.min.health);
+        return -1;
+    }
+    else if (life->health >= life->specie->limits.max.health)
+    {
+        life->health = life->specie->limits.max.health; // lets not go over the limit
+        printf("life %d of specie \"%s\" is at max health\n", life_index, life->specie->name);
+    }
 
+    if (life->energy <= life->specie->limits.min.energy)
+    {
+        life->state = STATE_DEAD;
+        printf("life %d of specie \"%s\" died from lack of energy, it had %f energy, and the minimum of its specie is %f\n", life_index, life->specie->name, life->energy, life->specie->limits.min.energy);
+    }
+    else if (life->energy > life->specie->limits.max.energy) // burn extra energy immediately at a high rate of temperature generation
+    {
+        float extra_energy = life->energy - life->specie->limits.max.energy;
+        
+        char* code = str_format("life_burn_energy world %d %f 4", life_index, extra_energy);
+        eval(vm, code);
+        free(code);
+        
+        
+    }
+    
+
+    return -1;
+}
+
+function(life_decay)
+{
+    World* world = (World*)arg(0).pointer;
+    Int life_index = arg(1).number;
+    Life* life = &world->lifes->data[life_index];
+
+    life->energy -= 0.1 * life->specie->dna[4] * (life->health / life->specie->limits.max.health);
+    life->health -= 0.1 * life->specie->dna[3];
+    world->temperature[life->x][life->y] += 0.1;
 
     return -1;
 }
@@ -628,6 +727,14 @@ function(game_turn)
             
         }
     }
+    world->time++;
+    return -1;
+}
+
+function(print_world)
+{
+    World* world = (World*)arg(0).pointer;
+
 
     // print map
     for (int i = 0; i < world->size.x; i++)
@@ -646,8 +753,6 @@ function(game_turn)
         printf("\n");
     }
     printf("\n");
-
-    world->time++;
     return -1;
 }
 
@@ -697,6 +802,7 @@ init(populosus)
     register_builtin(vm, "life_burn_energy", life_burn_energy);
     register_builtin(vm, "life_check", life_check);
 
+    register_builtin(vm, "print_world", print_world);
 
     register_builtin(vm, "free_world", free_world);
 

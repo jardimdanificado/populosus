@@ -27,9 +27,11 @@ enum
     PREFERENCE_DIRECTION,
     PREFERENCE_LIGHT,
     MIN_TEMPERATURE,
-    MIN_LIGHT,
     MAX_TEMPERATURE,
+    MIN_LIGHT,
     MAX_LIGHT,
+    MIN_ENERGY,// MAYBE AWALYS 0
+    MAX_ENERGY,
 };
 
 enum 
@@ -74,13 +76,30 @@ typedef struct
 } Preference;
 typedef List(Preference) PreferenceList;
 
+
+typedef struct 
+{
+    float temperature;
+    float light;
+    float energy;
+    float health;
+} SpecieLimitBasic;
+
+typedef struct 
+{
+    SpecieLimitBasic min;
+    SpecieLimitBasic max;
+} SpecieLimits;
+
 typedef struct 
 {
     char* name;
     BehaviourList *behaviours;
     PreferenceList *preferences;
     CharList *traits;
+    SpecieLimits limits;
     Int population;
+    float dna[8];
 } Specie;
 typedef List(Specie) SpecieList;
 
