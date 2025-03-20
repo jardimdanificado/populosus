@@ -641,7 +641,7 @@ function(life_grow)
             printf("life %d of specie \"%s\" grew to %d %d\n", life_index, life->specie->name, life->x, life->y);
             printf("life %d of specie \"%s\" now has %f energy and %f health\n", life_index, life->specie->name, life->energy, life->health);
         }
-        else 
+        else if (life->health < life->specie->limits.max.health) 
         {
             // if energy is less than 50 and bigger than 2, use 1 energy to gain 0.5 health
             if (life->energy > 2)
@@ -649,6 +649,12 @@ function(life_grow)
                 life->energy -= 1*life->specie->dna[1];
                 life->health += (0.5*life->specie->dna[2]);
             }
+        }
+        else // if health is max, burn energy
+        {
+            char* code = str_format("life_burn_energy world %d %f %d", life_index, 1.0, 2*life->specie->dna[4]);
+            eval(vm, code);
+            free(code);
         }
     }
 }
@@ -668,13 +674,13 @@ function(life_check)
     else if (life->health >= life->specie->limits.max.health)
     {
         life->health = life->specie->limits.max.health; // lets not go over the limit
-        printf("life %d of specie \"%s\" is at max health\n", life_index, life->specie->name);
+        //printf("life %d of specie \"%s\" is at max health\n", life_index, life->specie->name);
     }
 
     if (life->energy <= life->specie->limits.min.energy)
     {
         life->state = STATE_DEAD;
-        printf("life %d of specie \"%s\" died from lack of energy, it had %f energy, and the minimum of its specie is %f\n", life_index, life->specie->name, life->energy, life->specie->limits.min.energy);
+        printf("life %d of specie \"%s\" died at time %d from lack of energy, it had %f energy, and the minimum of its specie is %f\n", life_index, life->specie->name, world->time, life->energy, life->specie->limits.min.energy);
     }
     else if (life->energy > life->specie->limits.max.energy) // burn extra energy immediately at a high rate of temperature generation
     {
@@ -801,6 +807,8 @@ init(populosus)
     register_builtin(vm, "life_grow", life_grow);
     register_builtin(vm, "life_burn_energy", life_burn_energy);
     register_builtin(vm, "life_check", life_check);
+    register_builtin(vm, "life_decay", life_decay);
+    
 
     register_builtin(vm, "print_world", print_world);
 

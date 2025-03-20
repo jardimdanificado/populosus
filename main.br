@@ -1,17 +1,18 @@
 load "lib/std.so";
 load "lib/populosus.so";
 
-#new "world" (new_world 16 32);
+#new "world" (new_world 128 128);
 #new "specie0" (new_specie world);
 
 
 push_behaviour world specie0 "life_grow world self";
 push_behaviour world specie0 "life_photosynthesis world self";
 push_behaviour world specie0 "life_check world self";
+push_behaviour world specie0 "life_decay world self";
 
 push_trait world specie0 trait.photosynthesis;
-#new "life0" (new_life world specie0 8 16);
+#new "life0" (new_life world specie0 64 64);
 
-repeat 1000 "game_turn world";
+repeat 10000 "game_turn world";
 print_world world;
 free_world world;
