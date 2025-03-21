@@ -1,4 +1,4 @@
-#include <bruter.h>
+#include <buxu.h>
 #include "vocabulary.h"
 
 // math basics
@@ -96,7 +96,7 @@ typedef struct
     char* name;
     BehaviourList *behaviours;
     PreferenceList *preferences;
-    CharList *traits;
+    ByteList *traits;
     SpecieLimits limits;
     Int population;
     float dna[8];

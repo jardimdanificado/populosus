@@ -1,7 +1,2 @@
-bruterc "./src/populosus.c --debug"
-bruterc "./src/std.c --debug"
-
-rm -rf ./lib
-mkdir ./lib
-
-mv src/*.so ./lib/
+buxuc "./src/populosus.c" -o "./lib/populosus.so"
+buxuc "./src/std.c" -o "./lib/std.so"

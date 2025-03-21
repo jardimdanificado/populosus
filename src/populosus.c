@@ -335,7 +335,7 @@ void increase_preference(PreferenceList *preferences, char type, int value)
     }
 }
 
-char have_trait(CharList traits, char trait)
+char have_trait(ByteList traits, char trait)
 {
     for (int i = 0; i < traits.size; i++)
     {
@@ -438,7 +438,7 @@ function(new_specie)
     specie.name = generate_name(1);
     specie.behaviours = list_init(BehaviourList);
     specie.preferences = list_init(PreferenceList);
-    specie.traits = list_init(CharList);
+    specie.traits = list_init(ByteList);
     specie.population = 0;
     specie.dna[0] = 1;
     specie.dna[1] = 1;
@@ -601,7 +601,7 @@ function(life_grow)
 
     if (have_trait(*life->specie->traits, TRAIT_PHOTOSYNTHESIS))
     {
-        // if energy is greater than 50, the plant will grow
+        // if energy is greater than 50, the plant will try to grow
         if (life->energy >= (50*life->specie->dna[1]))
         {
             // lets find a random direction
@@ -611,14 +611,14 @@ function(life_grow)
             {
                 direction = random_int(1, 9);
             }
-            else
+            else // follow the preference
             {
                 direction = preferred_direction(*life->specie->preferences, CENTER);
             }
 
             Vector2 new_position = apply_direction((Vector2){life->x, life->y}, direction);
             if (new_position.x >= 0 && new_position.x < world->size.x && new_position.y >= 0 && new_position.y < world->size.y && world->creature[(Int)new_position.x][(Int)new_position.y] != -1)
-            {
+            {  // if the tile is occupied, try to find a free direction
                 direction = find_free_direction(world, life);
                 if (direction == -1 || direction == CENTER)
                 {
