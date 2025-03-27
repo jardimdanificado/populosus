@@ -1,2 +1,2 @@
-buxuc "./src/populosus.c" -o "./lib/populosus.so"
-buxuc "./src/std.c" -o "./lib/std.so"
+bucc "./src/populosus.c" -o "./lib/populosus.so"
+bucc "./src/std.c" -o "./lib/std.so"
